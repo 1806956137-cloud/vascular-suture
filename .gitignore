@@ -1,0 +1,35 @@
+# Unity-generated directories
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Bb]uild/
+[Bb]uilds/
+
+# IDE and local tool state
+.vs/
+.vscode/
+.idea/
+.dotnet/
+.gradle/
+CodexBackups/
+
+# Generated .NET project and test outputs
+[Bb]in/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+
+# Operating-system artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Crash and diagnostic artifacts
+mono_crash.*
+sysinfo.txt
+tmp/
+output/
