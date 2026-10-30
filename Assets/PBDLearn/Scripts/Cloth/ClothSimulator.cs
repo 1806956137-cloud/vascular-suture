@@ -515,6 +515,10 @@ namespace PBDLearn
             _meshModifier = meshModifier;
             _setting = setting;
 
+            // Presentation may read a paused scene before the first physics step.
+            // Populate actual geometric normals instead of exposing uninitialized native memory.
+            CalculateNormalsJob(default).Complete();
+
             var vertexCount = meshModifier.vertexCount;
             _vertexCount = vertexCount;
             _predictPositions = new NativeList<float3>(vertexCount, Allocator.Persistent);

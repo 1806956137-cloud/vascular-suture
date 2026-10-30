@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/TestScenes/Vessel_PBDTest/SingLayer.unity
+    guid: 4ac8ee48b7897f545a55de47c36b6202
   m_configObjects: {}

@@ -33,3 +33,11 @@ mono_crash.*
 sysinfo.txt
 tmp/
 output/
+
+# Local collaboration state, drafts, and captured output
+.agents/
+.codex-review/
+.codex_work/
+.codex_tmp_*.py
+PatentScreenshots/
+docs/research/

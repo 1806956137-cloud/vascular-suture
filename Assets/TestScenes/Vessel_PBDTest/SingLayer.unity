@@ -565,6 +565,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1270510455}
   - component: {fileID: 1270510454}
+  - component: {fileID: 867013001}
   m_Layer: 0
   m_Name: AutoSutureSystem
   m_TagString: Untagged
@@ -50495,3 +50496,20 @@ SceneRoots:
   - {fileID: 2044783900}
   - {fileID: 536694311}
   - {fileID: 1270510455}
+
+--- !u!114 &867013001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1270510453}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ca6d30a75c94c62b6c25ca062954e1c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  automatic: {fileID: 1270510454}
+  simulation: {fileID: 1652330219}
+  needleRig: {fileID: 536694310}
+  targetTolerance: 0.008

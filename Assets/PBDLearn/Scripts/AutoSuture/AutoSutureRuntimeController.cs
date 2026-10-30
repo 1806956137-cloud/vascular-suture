@@ -342,6 +342,68 @@ namespace PBDLearn
             get { return _state; }
         }
 
+        private bool sessionManaged;
+        private bool sessionPresentationActive;
+        public bool SessionInputBlocked { get; set; }
+        public Rect ManagedViewport { get; set; } = new Rect(0f, 0.075f, 0.765f, 0.84f);
+        public int CurrentPairIndex => _currentPairIndex;
+        public int CurrentPassInPair => _currentPassInPair;
+        public bool IsPaused => _paused;
+        public string ScreenshotNotice => Time.unscaledTime < _screenshotNoticeUntil ? _screenshotNotice : string.Empty;
+        public void FocusSessionTarget() => FrameManualCamera(GetCurrentCameraFocusBounds());
+        public void FrameSessionPlan() => FrameManualCamera(GetPlanBounds());
+        public void FocusSessionNeedle()
+        {
+            if (targetNeedle == null) return;
+            Renderer body = targetNeedle.GetComponentInChildren<Renderer>();
+            Bounds bounds = body != null ? body.bounds : new Bounds(needleRig.GetSemanticTipPoint(), Vector3.one * 0.08f);
+            bounds.Expand(0.04f);
+            FrameManualCamera(bounds);
+        }
+        public void RestoreSessionCamera() => RestoreAutomaticCameraControl();
+        public string ErrorReason => _errorReason;
+        public bool IsExecuting => _state != AutoSutureState.Idle &&
+            _state != AutoSutureState.PreviewPlan && _state != AutoSutureState.Done &&
+            _state != AutoSutureState.ErrorPaused;
+
+        public void ConfigureSessionManaged()
+        {
+            sessionManaged = true;
+            createRuntimeUI = false;
+            autoGeneratePlanOnStart = false;
+            allowPreviewPointEditing = false;
+            sessionPresentationActive = false;
+        }
+
+        public void SetSessionPresentation(bool active, bool editPlan)
+        {
+            sessionPresentationActive = active;
+            allowPreviewPointEditing = active && editPlan;
+            if (!active)
+            {
+                SetMarkerCount(0);
+                if (_trajectoryLine != null) _trajectoryLine.positionCount = 0;
+                if (miniMapCamera != null) miniMapCamera.enabled = false;
+            }
+        }
+
+        public bool TryGetGuidancePass(int pairIndex, int passIndex, out AutoSuturePass pass)
+        {
+            pass = null;
+            if (plan == null || pairIndex < 0 || pairIndex >= plan.Count)
+                return false;
+            AutoSutureStitchPair pair = plan.stitchPairs[pairIndex];
+            pass = passIndex == 0 ? pair.sideAPass : pair.sideBPass;
+            return TryRefreshPassFromMaterialAnchors(pass, false, out _);
+        }
+
+        public void SelectGuidancePass(int pairIndex, int passIndex)
+        {
+            if (!sessionManaged || IsExecuting) return;
+            _currentPairIndex = pairIndex;
+            _currentPassInPair = passIndex;
+        }
+
         public string FocusDebugStatusText
         {
             get
@@ -403,13 +465,17 @@ namespace PBDLearn
 
         private void Update()
         {
+            if (sessionManaged && !sessionPresentationActive)
+                return;
 #if UNITY_EDITOR
-            if (Input.GetKeyDown(KeyCode.Escape))
+            if (!sessionManaged && Input.GetKeyDown(KeyCode.Escape))
                 RestoreEditorGameView();
 #endif
             ResolveRefs();
             EnsureRuntimeSystems();
             UpdateCameraRig();
+            if (sessionManaged && mainCamera != null)
+                mainCamera.rect = ManagedViewport;
             HandlePreviewPointEditing();
             UpdateRuntimeUI();
             UpdateMarkers();
@@ -483,6 +549,8 @@ namespace PBDLearn
         [ContextMenu("Preview Plan")]
         public void PreviewPlan()
         {
+            if (IsExecuting || _state == AutoSutureState.Done)
+                return;
             ClearRuntimeCompletion();
             if (!GeneratePlanFromGuides())
             {
@@ -498,6 +566,9 @@ namespace PBDLearn
         [ContextMenu("Start Auto Suture")]
         public void StartAutoSuture()
         {
+            if (IsExecuting || _state == AutoSutureState.Done ||
+                _state == AutoSutureState.ErrorPaused)
+                return;
             ClearRuntimeCompletion();
             if (!ResolveRefs())
             {
@@ -5389,7 +5460,7 @@ namespace PBDLearn
                 miniMapCamera.clearFlags = CameraClearFlags.Depth;
             }
             miniMapCamera.rect =
-                new Rect(0.73f, 0.69f, 0.25f, 0.28f);
+                sessionManaged ? new Rect(0.56f, 0.69f, 0.19f, 0.21f) : new Rect(0.73f, 0.69f, 0.25f, 0.28f);
             miniMapCamera.enabled =
                 showPlanOverviewCamera &&
                 useOrthographicPlanCamera;
@@ -5632,7 +5703,7 @@ namespace PBDLearn
             Camera source = mainCamera != null ? mainCamera : Camera.main;
             if (source == null)
             {
-                SetScreenshotNotice("Screenshot failed: no main camera is available.");
+                SetScreenshotNotice(sessionManaged ? "截图失败：当前没有可用相机。" : "Screenshot failed: no main camera is available.");
                 Debug.LogError("[PatentScreenshot] No main camera is available.", this);
                 return;
             }
@@ -5673,13 +5744,13 @@ namespace PBDLearn
                 string stem = $"Capture_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{_state}_P{_currentPairIndex + 1}_{Guid.NewGuid():N}";
                 string path = Path.Combine(ScreenshotDirectory, stem);
                 File.WriteAllBytes(path + ".jpg", jpg);
-                SetScreenshotNotice("Saved one JPG: 1920 x 1080, 300 DPI. Click Folder to view.");
+                SetScreenshotNotice(sessionManaged ? "仿真视图已保存至 PatentScreenshots 文件夹（JPG）。" : "Saved one JPG: 1920 x 1080, 300 DPI. Click Folder to view.");
                 Debug.Log($"[PatentScreenshot] Saved {ScreenshotWidth}x{ScreenshotHeight} at {ScreenshotDpi} DPI; " +
                     $"main view, centered crop, no margins/panel/overview; state={_state}, paused={_paused}\n{path}.jpg", this);
             }
             catch (Exception exception)
             {
-                SetScreenshotNotice("Screenshot failed. See Console for details and save path.");
+                SetScreenshotNotice(sessionManaged ? "截图失败，请查看日志中的原因与保存路径。" : "Screenshot failed. See Console for details and save path.");
                 Debug.LogError($"[PatentScreenshot] Failed to save in {ScreenshotDirectory}\n{exception}", this);
             }
             finally
@@ -5728,6 +5799,11 @@ namespace PBDLearn
 
         private void HandlePreviewPointEditing()
         {
+            if (sessionManaged && (SessionInputBlocked || Time.timeScale == 0f))
+            {
+                _draggingPlanMarker = false;
+                return;
+            }
             if (!allowPreviewPointEditing || _state != AutoSutureState.PreviewPlan || mainCamera == null || plan == null || plan.Count <= 0)
             {
                 _draggingPlanMarker = false;
@@ -6041,6 +6117,13 @@ namespace PBDLearn
 
         private void HandleGameViewCameraInput()
         {
+            if (sessionManaged && SessionInputBlocked)
+            {
+                _cameraOrbitDragging = false;
+                _cameraPanDragging = false;
+                _lastCameraPointer = Input.mousePosition;
+                return;
+            }
             if (!enableSceneLikeCameraControl || mainCamera == null)
             {
                 RestoreAutomaticCameraControl();
