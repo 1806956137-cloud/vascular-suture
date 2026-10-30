@@ -8,7 +8,7 @@
 
 https://github.com/user-attachments/assets/192375e6-eed2-4ae5-8ff9-4502b76dd0de
 
-[打开完整演示视频](https://github.com/user-attachments/assets/192375e6-eed2-4ae5-8ff9-4502b76dd0de) · [下载 1080p 视频](docs/videos/automatic-suturing.mp4)
+点击上方播放器观看完整演示，也可[下载 1080p 视频](docs/videos/automatic-suturing.mp4?raw=true)。
 
 ## 仿真方法：XPBD 与双层组织约束
 
