@@ -1,4 +1,4 @@
-# 基于 XPBD 的双层血管缝合仿真
+# 基于 XPBD 的血管缝合仿真
 
 以 **扩展位置动力学（Extended Position-Based Dynamics，XPBD）** 为核心，在统一粒子系统中求解血管壁的拉伸、弯曲与层间耦合，并将针具接触、穿刺孔道和缝线牵拉接入组织变形过程。工程使用 **Unity 2022.3**，当前演示场景为血管端对端吻合，支持手动操针与自动六针缝合。
 
@@ -10,108 +10,116 @@ https://github.com/user-attachments/assets/192375e6-eed2-4ae5-8ff9-4502b76dd0de
 
 点击上方播放器观看完整演示，也可[下载 1080p 视频](docs/videos/automatic-suturing.mp4?raw=true)。
 
-## 仿真方法：XPBD 与双层组织约束
+## 血管建模仿真方法：
 
 血管壁由内外两层三角网格离散。两层粒子共同参与约束迭代，面内约束描述各层形变，跨层约束传递载荷并维持壁厚，接触与缝合约束将器械操作转化为组织位移。
 
 ### 1. 离散状态与时间推进
 
-将全部粒子位置堆叠为 $`\mathbf{x}\in\mathbb{R}^{3N}`$，速度为 $`\mathbf{v}`$。质量矩阵与逆质量定义为：
+将 N 个粒子的位置与速度分别堆叠为以下向量：
 
-```math
-\mathbf{M}=\operatorname{diag}(m_{1}\mathbf{I}_{3},\ldots,m_{N}\mathbf{I}_{3}),
+$$
+\mathbf{x}\in\mathbb{R}^{3N},
+\qquad
+\mathbf{v}\in\mathbb{R}^{3N}.
+$$
+
+质量矩阵与逆质量定义为：
+
+$$
+\mathbf{M}=\mathrm{diag}(m_{1}\mathbf{I}_{3},\ldots,m_{N}\mathbf{I}_{3}),
 \qquad
 w_{i}=\begin{cases}1/m_{i},&\text{自由粒子},\\0,&\text{固定粒子}.\end{cases}
-```
+$$
 
-记一个求解步的时长为 $`h`$，时间步编号为 $`n`$。外力作用下的基本位置预测为：
+记一个求解步的时长为 h，时间步编号为 n。外力作用下的基本位置预测为：
 
-```math
+$$
 \widetilde{\mathbf{x}}
 =\mathbf{x}^{n}+h\mathbf{v}^{n}+h^{2}\mathbf{M}^{-1}\mathbf{f}_{\mathrm{ext}}.
-```
+$$
 
 工程在预测阶段加入重力、外场的表面法向分量和速度阻尼。随后以预测位置为初值，通过约束修正得到下一步位置，再重建速度：
 
-```math
+$$
 \mathbf{x}^{(0)}=\widetilde{\mathbf{x}},
 \qquad
 \mathbf{v}^{n+1}=\frac{\mathbf{x}^{n+1}-\mathbf{x}^{n}}{h}.
-```
+$$
 
 这里圆括号上标表示同一时间步内的迭代编号，避免与时间步上标混用。
 
 ### 2. 弹性能量、柔度与隐式离散
 
-XPBD 用几何约束 $`C_{j}(\mathbf{x})`$ 描述局部形变，以柔度 $`\alpha_{j}`$ 调节其弹性响应。对正柔度的独立标量约束，能量写作：
+XPBD 用几何约束描述局部形变，以柔度调节其弹性响应。以 C 表示约束函数，α 表示柔度，下标 j 标记约束。对正柔度的独立标量约束，能量与弹性力写作：
 
-```math
+$$
 U(\mathbf{x})=\sum_{j}\frac{C_{j}(\mathbf{x})^{2}}{2\alpha_{j}},
 \qquad
 \mathbf{f}_{\mathrm{elastic}}=-\nabla_{\mathbf{x}}U(\mathbf{x}).
-```
+$$
 
 对于线性伸长约束，柔度是相应弹簧刚度的倒数；柔度越小，抵抗该类形变的能力越强。零柔度通过约束方程的极限形式表示硬约束。不同几何约束具有各自的量纲和参数尺度。
 
 将惯性与弹性放在同一隐式时间步中，可写成位置空间的增量势能：
 
-```math
+$$
 \Phi(\mathbf{x})=
 \frac{1}{2h^{2}}
 (\mathbf{x}-\widetilde{\mathbf{x}})^{\mathsf{T}}
 \mathbf{M}(\mathbf{x}-\widetilde{\mathbf{x}})
 +U(\mathbf{x}).
-```
+$$
 
 第一项衡量位置偏离自由预测的程度，第二项衡量组织形变。引入约束乘子和时间步缩放后的柔度，可以把驻点条件改写为：
 
-```math
+$$
 \begin{aligned}
 \mathbf{M}(\mathbf{x}-\widetilde{\mathbf{x}})-\mathbf{J}^{\mathsf{T}}\boldsymbol{\lambda}&=\mathbf{0},\\
 \mathbf{C}(\mathbf{x})+\widetilde{\boldsymbol{\alpha}}\boldsymbol{\lambda}&=\mathbf{0},\\
 \widetilde{\alpha}_{j}&=\alpha_{j}/h^{2}.
 \end{aligned}
-```
+$$
 
-其中 $`\mathbf{J}`$ 是约束对粒子位置的雅可比矩阵，每一行对应一个约束梯度。上述能量与乘子关系来自 [XPBD 原论文的式 (5)、(8)–(9)](https://mmacklin.com/xpbd.pdf)；这里将时间步统一记作 $`h`$。
+其中 J 是约束对粒子位置的雅可比矩阵，每一行对应一个约束梯度。这里将时间步统一记作 h。
 
 ### 3. 从线性化到局部 XPBD 更新
 
 在当前迭代位置重新计算约束与梯度，采用 XPBD 的局部线性化，可得到乘子增量的约化系统：
 
-```math
+$$
 \left(\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf{T}}
 +\widetilde{\boldsymbol{\alpha}}\right)\Delta\boldsymbol{\lambda}
 =-\mathbf{C}(\mathbf{x})-\widetilde{\boldsymbol{\alpha}}\boldsymbol{\lambda}.
-```
+$$
 
-按约束逐个更新时，这个系统化为标量运算。对约束 $`j`$，第 $`k`$ 次迭代为：
+按约束逐个更新时，这个系统化为标量运算。对第 j 个约束，第 k 次迭代为：
 
-```math
+$$
 \Delta\lambda_{j}=
 \frac{-C_{j}(\mathbf{x}^{(k)})-\widetilde{\alpha}_{j}\lambda_{j}^{(k)}}
 {\displaystyle\sum_{i}w_{i}
 \left\lVert\nabla_{\mathbf{x}_{i}}C_{j}(\mathbf{x}^{(k)})\right\rVert^{2}
 +\widetilde{\alpha}_{j}}.
-```
+$$
 
-```math
+$$
 \begin{aligned}
 \Delta\mathbf{x}_{i}&=w_{i}\nabla_{\mathbf{x}_{i}}C_{j}\,\Delta\lambda_{j},\\
 \mathbf{x}_{i}&\leftarrow\mathbf{x}_{i}+\Delta\mathbf{x}_{i},\\
 \lambda_{j}&\leftarrow\lambda_{j}+\Delta\lambda_{j}.
 \end{aligned}
-```
+$$
 
-分母结合有效逆质量与柔度，分子同时考虑几何误差和本步累计乘子。乘子在同一求解步的迭代间保留，使柔度直接参与平衡关系。标准 XPBD 在新时间步初始化乘子；固定粒子的零逆质量使其保持位置，并将修正分配给其他自由粒子。[XPBD，算法 1 与式 (16)–(18)](https://mmacklin.com/xpbd.pdf)
+分母结合有效逆质量与柔度，分子同时考虑几何误差和本步累计乘子。乘子在同一求解步的迭代间保留，使柔度直接参与平衡关系。标准 XPBD 在新时间步初始化乘子；固定粒子的零逆质量使其保持位置，并将修正分配给其他自由粒子。
 
 当柔度为零时，该更新回到硬约束的位置投影。有限迭代下的误差仍由约束耦合、求解顺序和迭代预算共同决定；柔度用于设定弹性，迭代次数用于改善求解收敛。
 
 ### 4. 面内拉伸约束
 
-对同层相邻粒子 $`a,b`$，以初始边长 $`\ell_{ab}^{0}`$ 为参考，定义：
+对同层相邻粒子 a、b，以初始边长为参考，定义边长约束、单位方向及约束梯度：
 
-```math
+$$
 \begin{aligned}
 C_{\mathrm{d}}(\mathbf{x})
 &=\left\lVert\mathbf{x}_{a}-\mathbf{x}_{b}\right\rVert-\ell_{ab}^{0},\\
@@ -121,11 +129,11 @@ C_{\mathrm{d}}(\mathbf{x})
 \nabla_{\mathbf{x}_{a}}C_{\mathrm{d}}&=\mathbf{n}_{ab},\qquad
 \nabla_{\mathbf{x}_{b}}C_{\mathrm{d}}=-\mathbf{n}_{ab}.
 \end{aligned}
-```
+$$
 
-单位梯度使分母简化，得到边长约束的显式局部更新：
+式中，ℓ 表示边长，上标 0 表示初始值，下标 ab 标记粒子对。单位梯度使分母简化，得到边长约束的显式局部更新：
 
-```math
+$$
 \begin{aligned}
 \Delta\lambda_{\mathrm{d}}
 &=\frac{-C_{\mathrm{d}}-\widetilde{\alpha}_{\mathrm{d}}\lambda_{\mathrm{d}}}
@@ -133,37 +141,39 @@ C_{\mathrm{d}}(\mathbf{x})
 \Delta\mathbf{x}_{a}&=w_{a}\mathbf{n}_{ab}\Delta\lambda_{\mathrm{d}},\qquad
 \Delta\mathbf{x}_{b}=-w_{b}\mathbf{n}_{ab}\Delta\lambda_{\mathrm{d}}.
 \end{aligned}
-```
+$$
 
 内壁和外壁分别建立面内边约束。局部柔度分布控制不同区域对拉伸的响应，网格中的多条边共同传递针具与缝线产生的位移。
 
 ### 5. 弯曲约束
 
-相邻三角面共享一条边，其单位法线为 $`\mathbf{n}_{1},\mathbf{n}_{2}`$。弯曲由当前二面角相对参考角度的偏差描述：
+相邻三角面共享一条边，其单位法线分别记为 n₁、n₂。弯曲由当前二面角相对参考角度的偏差描述：
 
-```math
-\theta=\arccos\!\left(\operatorname{clamp}
+$$
+\theta=\arccos\!\left(\mathrm{clamp}
 (\mathbf{n}_{1}\cdot\mathbf{n}_{2},-1,1)\right),
 \qquad
 C_{\mathrm{b}}=\theta-\theta_{0}.
-```
+$$
+
+其中 clamp 将输入截断到区间 [−1, 1]，以避免浮点误差使反余弦输入越界。
 
 约束涉及共享边及两个对顶点，共四个粒子。将二面角梯度代入同一 XPBD 更新即可分配弯曲修正。面内距离控制伸长，二面角控制曲率变化，二者使用各自的柔度与乘子。
 
 ### 6. 双层耦合与壁厚保持
 
-内外壁通过对应粒子及跨层连接建立耦合。对一组对应点，记外壁位置为 $`\mathbf{x}_{\mathrm{o}}`$，内壁位置为 $`\mathbf{x}_{\mathrm{i}}`$，参考间距为 $`h_{0}`$：
+内外壁通过对应粒子及跨层连接建立耦合。对一组对应点，以下标 o、i 分别标记外壁与内壁位置，以 h₀ 表示参考间距。厚度约束及跨层单位方向为：
 
-```math
+$$
 C_{\mathrm{h}}=
 \left\lVert\mathbf{x}_{\mathrm{o}}-\mathbf{x}_{\mathrm{i}}\right\rVert-h_{0},
 \qquad
 \mathbf{n}_{\mathrm{h}}=
 \frac{\mathbf{x}_{\mathrm{o}}-\mathbf{x}_{\mathrm{i}}}
 {\left\lVert\mathbf{x}_{\mathrm{o}}-\mathbf{x}_{\mathrm{i}}\right\rVert}.
-```
+$$
 
-```math
+$$
 \begin{aligned}
 \Delta\lambda_{\mathrm{h}}
 &=\frac{-C_{\mathrm{h}}-\widetilde{\alpha}_{\mathrm{h}}\lambda_{\mathrm{h}}}
@@ -171,18 +181,28 @@ C_{\mathrm{h}}=
 \Delta\mathbf{x}_{\mathrm{o}}&=w_{\mathrm{o}}\mathbf{n}_{\mathrm{h}}\Delta\lambda_{\mathrm{h}},\\
 \Delta\mathbf{x}_{\mathrm{i}}&=-w_{\mathrm{i}}\mathbf{n}_{\mathrm{h}}\Delta\lambda_{\mathrm{h}}.
 \end{aligned}
-```
+$$
 
 跨层连接把一侧壁面的位移传递到另一侧；跨层柔度决定壁厚方向允许的相对形变。层间分离与局部防翻转约束进一步维持两层的几何次序。面内拉伸、弯曲和厚度在同一迭代中共同作用，形成双层组织的整体响应。
 
 ### 7. 接触与穿刺
 
-局部接触可用单边间隙约束表示。设接触面点为 $`\mathbf{p}_{\mathrm{c}}`$，朝向允许区域的单位法线为 $`\mathbf{n}_{\mathrm{c}}`$，安全间距为 $`d_{\min}`$：
+局部接触可用单边间隙约束表示。接触面点、朝向允许区域的单位法线及安全间距分别记为：
 
-```math
+$$
+\mathbf{p}_{\mathrm{c}},
+\qquad
+\mathbf{n}_{\mathrm{c}},
+\qquad
+d_{\min}.
+$$
+
+允许区域满足以下间隙条件：
+
+$$
 g_{\mathrm{c}}(\mathbf{x}_{i})=
 \mathbf{n}_{\mathrm{c}}\cdot(\mathbf{x}_{i}-\mathbf{p}_{\mathrm{c}})-d_{\min}\geq0.
-```
+$$
 
 对违反间隙条件的区域施加分离修正，结合针尖局部作用、层间关系和针体位置更新接触状态。穿刺后保存针体穿过内外壁的孔道信息，使后续针体运动和缝线牵拉具有组织中的附着位置。
 
@@ -190,18 +210,18 @@ g_{\mathrm{c}}(\mathbf{x}_{i})=
 
 孔位和参考针位使用材料身份跟随组织。在网格边上，两个端点及插值参数确定锚点：
 
-```math
+$$
 \mathbf{p}(s,t)=(1-s)\mathbf{x}_{a}(t)+s\mathbf{x}_{b}(t),
 \qquad 0\leq s\leq1.
-```
+$$
 
-随粒子位置更新即可得到当前锚点。缝线将两侧孔道约束点 $`\mathbf{q}_{A},\mathbf{q}_{B}`$ 配对，逐步缩短允许距离，使两侧组织收拢：
+随粒子位置更新即可得到当前锚点。缝线将两侧孔道约束点配对，以 A、B 标记两端，逐步缩短允许距离，使两侧组织收拢：
 
-```math
+$$
 L^{n+1}=\max\!\left(L_{\mathrm{target}},L^{n}-v_{\mathrm{pull}}h\right),
 \qquad
 C_{\mathrm{s}}=\left\lVert\mathbf{q}_{B}-\mathbf{q}_{A}\right\rVert-L.
-```
+$$
 
 拉紧时沿两端连线分配位置修正，再由附着关系传递到组织粒子；局部接触限制继续牵拉造成的交叠。缝合流程据此串联穿刺、离壁与收拢。
 
@@ -217,14 +237,13 @@ C_{\mathrm{s}}=\left\lVert\mathbf{q}_{B}-\mathbf{q}_{A}\right\rVert-L.
 | 迭代次数 | 控制耦合约束误差的传播与收敛 |
 | 速度阻尼 | 调节运动衰减 |
 
-子步细分与增加同一步内的迭代对应不同的数值过程。若一帧分为 $`S`$ 个子步，则每次求解使用 $`h=\Delta t/S`$，柔度缩放也应使用该子步长。[Small Steps in Physics Simulation](https://mmacklin.com/smallsteps.pdf) 对比了这两种计算预算分配方式，并展示了较小子步对约束误差与数值耗散的影响。
+子步细分与增加同一步内的迭代对应不同的数值过程。若一帧分为 S 个子步，则每次求解使用的子步长为：
 
-### 方法参考
+$$
+h=\frac{\Delta t}{S}.
+$$
 
-1. Macklin, M., Müller, M., Chentanez, N. **XPBD: Position-Based Simulation of Compliant Constrained Dynamics.** MIG, 2016, pp. 49–54. [论文 PDF](https://mmacklin.com/xpbd.pdf) · [DOI](https://doi.org/10.1145/2994258.2994272)
-2. Macklin, M., et al. **Small Steps in Physics Simulation.** SCA, 2019, Article 39. [论文 PDF](https://mmacklin.com/smallsteps.pdf) · [DOI](https://doi.org/10.1145/3309486.3340247)
-
-组织约束与仿真步的实现入口见 [ClothJobs.cs](Assets/PBDLearn/Scripts/Cloth/ClothJobs.cs) 和 [ClothSimulator.cs](Assets/PBDLearn/Scripts/Cloth/ClothSimulator.cs)。
+其中 Δt 为一帧的时长，柔度缩放也应使用该子步长。[Small Steps in Physics Simulation](https://mmacklin.com/smallsteps.pdf) 对比了这两种计算预算分配方式，并展示了较小子步对约束误差与数值耗散的影响。
 
 ## 功能与流程
 
@@ -297,22 +316,6 @@ C_{\mathrm{s}}=\left\lVert\mathbf{q}_{B}-\mathbf{q}_{A}\right\rVert-L.
 | 帮助与菜单 | “操作帮助”按钮；**Esc** 打开或关闭暂停菜单 |
 | 拉线 | 完成两次穿刺后点击“拉线” |
 | 截图 | **F12**；仿真视图保存至工程根目录 `PatentScreenshots/` |
-
-## 工程结构
-
-| 路径 | 职责 |
-| --- | --- |
-| `Assets/PBDLearn/Scripts/Cloth/` | 求解器、约束任务、双层驱动、切口与穿刺数据 |
-| `Assets/PBDLearn/Scripts/AutoSuture/` | 六针计划、针具转移、穿刺与拉线工作流 |
-| `Assets/PBDLearn/Scripts/Colliders/` | 针具控制、碰撞代理和针体几何 |
-| `Assets/PBDLearn/Runtime/Procedures/VascularSuturing/` | 手动事件推进、会话模式及键鼠输入 |
-| `Assets/PBDLearn/Runtime/Presentation/` | 主页、操作面板、孔位和工具提示 |
-| `Assets/PBDLearn/Content/Vascular/` | 血管资源、预制体和材质 |
-| `Assets/TestScenes/Vessel_PBDTest/` | 主演示场景 |
-| `Tools/Tests/` | 几何、路线与自动缝合回归检查 |
-| `docs/` | 操作说明、架构与验证记录 |
-
-粒子状态使用 `NativeList` / `NativeArray` 存储，内外壁由同一求解器管理，通过顶点身份及跨层连接建立对应关系。Unity Job System 调度位置预测、约束求解和网格相关计算。
 
 ## 开发与验证
 
